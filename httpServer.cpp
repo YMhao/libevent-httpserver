@@ -11,12 +11,12 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
 #include <unistd.h>
 
 #include <iostream>
 
 #include "log.h"
+#include "httpTask.h"
 
 using namespace std;
 
@@ -65,7 +65,7 @@ int HttpServer::bindSocket(const char *ip,int port)
     return nfd;
 }
 
-bool HttpServer::servInit(const char *ip,int port, int nthreads) {
+bool HttpServer::servInit(const char *ip,int port, int nthreads, int nworkthreads) {
     int ret;
     int sfd = bindSocket(ip,port);
     if (sfd < 0) {
@@ -78,7 +78,9 @@ bool HttpServer::servInit(const char *ip,int port, int nthreads) {
            LOG_DEBUG("evthread_use_pthreads failed.");
     }
 
-    // nthreads 数量并不能明显增加并发处理，耗时的数据处理还是要在线程池中处理
+    // set thread_pool size 设置线程池的线程数
+    m_thread_pool.Init(nworkthreads);
+
     pthread_t threads[nthreads];
     for (int i = 0; i < nthreads; i++) {
         struct event_base *base = event_init();
@@ -129,31 +131,29 @@ void HttpServer::genericHandler(struct evhttp_request *req, void *arg) {
 //#define HTTP_SERVUNAVAIL	503	/**< the server is not available */
 
 void HttpServer::processRequest(struct evhttp_request *req) {
-    struct evbuffer *buf_input = evhttp_request_get_input_buffer(req);
-    if(!buf_input) {
-        LOG_ERROR("evhttp_request_get_input_buffer failed\n");
-        return;
-    }
-    // 如果要跨线程，evbuffer要加锁
-    // Enable locking on an evbuffer so that it can safely be used by multiple threads at the same time.
-    evbuffer_enable_locking(buf_input,NULL);
+      HttpTask *task = new HttpTask(req);
+      m_thread_pool.AddTask(task);
 
-    struct evbuffer *buf = evhttp_request_get_output_buffer(req);
-    if(!buf) {
-        LOG_ERROR("evhttp_request_get_output_buffer failed\n");
-        return;
-    }
+//    struct evbuffer *buf_input = evhttp_request_get_input_buffer(req);
+//    if(!buf_input) {
+//        LOG_ERROR("evhttp_request_get_input_buffer failed\n");
+//        return;
+//    }
+//    // 如果要跨线程，evbuffer要加锁
+//    // Enable locking on an evbuffer so that it can safely be used by multiple threads at the same time.
+//    evbuffer_enable_locking(buf_input,NULL);
 
-    // sleep(1) just for test bool HttpServer::servInit(const char *ip,int port, int nthreads)
-    // nthreads 数量并不能明显增加并发处理，耗时的数据处理还是要在线程池中处理
-    sleep(1);
+//    struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+//    if(!buf) {
+//        LOG_ERROR("evhttp_request_get_output_buffer failed\n");
+//        return;
+//    }
 
-    // 如果要跨线程，evbuffer要加锁
-    // Enable locking on an evbuffer so that it can safely be used by multiple threads at the same time.
-    evbuffer_enable_locking(buf,NULL);
-    sleep(1);
-    evbuffer_lock(buf);
-    evbuffer_add_printf(buf, "threadid:%d uri: %s\n",pthread_self(), evhttp_request_uri(req));
-    evhttp_send_reply(req, HTTP_OK, "OK", buf);
-    evbuffer_unlock(buf);
+//    // 如果要跨线程，evbuffer要加锁
+//    // Enable locking on an evbuffer so that it can safely be used by multiple threads at the same time.
+//    evbuffer_enable_locking(buf,NULL);
+//    evbuffer_lock(buf);
+//    evbuffer_add_printf(buf, "threadid:%ld uri: %s\n",pthread_self(), evhttp_request_uri(req));
+//    evhttp_send_reply(req, HTTP_OK, "OK", buf);
+//    evbuffer_unlock(buf);
 }

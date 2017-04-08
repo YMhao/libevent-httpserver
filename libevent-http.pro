@@ -7,11 +7,18 @@ LIBS += -lpthread -levent -levent_pthreads
 
 SOURCES += main.cpp \
     httpServer.cpp \
-    log.cpp
+    log.cpp \
+    httpTask.cpp \
+    thread.cpp \
+    threadPool.cpp
 
 HEADERS += \
     httpServer.h \
-    log.h
+    log.h \
+    thread.h \
+    threadPool.h \
+    httpTask.h \
+    task.h
 
 DISTFILES += \
     CMakeLists.txt
