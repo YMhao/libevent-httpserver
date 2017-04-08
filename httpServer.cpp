@@ -2,6 +2,7 @@
 
 #include <event.h>
 #include <evhttp.h>
+#include <event2/thread.h>
 #include <pthread.h>
 #include <errno.h>
 #include <string.h>
@@ -10,6 +11,8 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <unistd.h>
 
 #include <iostream>
 
@@ -71,6 +74,11 @@ bool HttpServer::servInit(const char *ip,int port, int nthreads) {
     }
     LOG_DEBUG("Bind %s:%u success.",ip,port);
 
+    if(evthread_use_pthreads()!=0) {
+           LOG_DEBUG("evthread_use_pthreads failed.");
+    }
+
+    // nthreads 数量并不能明显增加并发处理，耗时的数据处理还是要在线程池中处理
     pthread_t threads[nthreads];
     for (int i = 0; i < nthreads; i++) {
         struct event_base *base = event_init();
@@ -121,8 +129,31 @@ void HttpServer::genericHandler(struct evhttp_request *req, void *arg) {
 //#define HTTP_SERVUNAVAIL	503	/**< the server is not available */
 
 void HttpServer::processRequest(struct evhttp_request *req) {
-    struct evbuffer *buf = evbuffer_new();
-    if (buf == NULL) return;
-    evbuffer_add_printf(buf, "uri: %s\n", evhttp_request_uri(req));
+    struct evbuffer *buf_input = evhttp_request_get_input_buffer(req);
+    if(!buf_input) {
+        LOG_ERROR("evhttp_request_get_input_buffer failed\n");
+        return;
+    }
+    // 如果要跨线程，evbuffer要加锁
+    // Enable locking on an evbuffer so that it can safely be used by multiple threads at the same time.
+    evbuffer_enable_locking(buf_input,NULL);
+
+    struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+    if(!buf) {
+        LOG_ERROR("evhttp_request_get_output_buffer failed\n");
+        return;
+    }
+
+    // sleep(1) just for test bool HttpServer::servInit(const char *ip,int port, int nthreads)
+    // nthreads 数量并不能明显增加并发处理，耗时的数据处理还是要在线程池中处理
+    sleep(1);
+
+    // 如果要跨线程，evbuffer要加锁
+    // Enable locking on an evbuffer so that it can safely be used by multiple threads at the same time.
+    evbuffer_enable_locking(buf,NULL);
+    sleep(1);
+    evbuffer_lock(buf);
+    evbuffer_add_printf(buf, "threadid:%d uri: %s\n",pthread_self(), evhttp_request_uri(req));
     evhttp_send_reply(req, HTTP_OK, "OK", buf);
+    evbuffer_unlock(buf);
 }

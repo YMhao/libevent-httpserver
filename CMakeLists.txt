@@ -8,4 +8,4 @@ AUX_SOURCE_DIRECTORY(./ SOURCES)
 
 add_executable(${APP} ${SOURCES})
 
-TARGET_LINK_LIBRARIES(${APP} pthread event)
+TARGET_LINK_LIBRARIES(${APP} pthread event event_pthreads)

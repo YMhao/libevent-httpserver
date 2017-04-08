@@ -3,7 +3,7 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-LIBS += -lpthread -levent
+LIBS += -lpthread -levent -levent_pthreads
 
 SOURCES += main.cpp \
     httpServer.cpp \
@@ -12,3 +12,6 @@ SOURCES += main.cpp \
 HEADERS += \
     httpServer.h \
     log.h
+
+DISTFILES += \
+    CMakeLists.txt
